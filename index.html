@@ -1,1 +1,125 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aminur Rahman | Cybersecurity Toolkit</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+        }
+        .hero {
+            background-color: #2c3e50;
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+        }
+        .hero h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .hero p {
+            font-size: 1.2em;
+            color: #bdc3c7;
+            max-width: 600px;
+            margin: 10px auto 0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            padding: 30px;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            border-top: 5px solid transparent;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        /* Thematic accents for each card */
+        .card-hash { border-top-color: #f39c12; }
+        .card-rsa { border-top-color: #3498db; }
+        .card-cert { border-top-color: #9b59b6; }
+
+        .card h2 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .card p {
+            color: #7f8c8d;
+            flex-grow: 1;
+        }
+        .btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #2ecc71;
+            color: white;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+        .card:hover .btn {
+            background-color: #27ae60;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="hero">
+        <h1>Aminur Rahman</h1>
+        <p>Interactive Cybersecurity & Cryptography Portfolio</p>
+    </div>
+
+    <div class="container">
+        <a href="hash.html" class="card card-hash">
+            <h2>#️⃣ Cryptographic Hash Engine</h2>
+            <p>An interactive visualizer demonstrating the Avalanche Effect, deterministic outputs, and collision resistance using the SHA-256 algorithm.</p>
+            <div><span class="btn">Launch Simulator</span></div>
+        </a>
+
+        <a href="public-key.html" class="card card-rsa">
+            <h2>🔐 RSA Public Key Simulator</h2>
+            <p>A network flow simulation showcasing asymmetric encryption. Watch how plaintext is secured across an untrusted network using 2048-bit keys.</p>
+            <div><span class="btn">Launch Simulator</span></div>
+        </a>
+
+        <a href="certificate.html" class="card card-cert">
+            <h2>📜 X.509 Certificate Verifier</h2>
+            <p>Explore the chain of trust. Generate a Certificate Signing Request (CSR), apply a CA signature, and simulate a Man-in-the-Middle tampering attack.</p>
+            <div><span class="btn">Launch Simulator</span></div>
+        </a>
+    </div>
+
+    <footer>
+        &copy; 2026 Aminur Rahman | Powered by Web Crypto API
+    </footer>
+
+</body>
+</html>
