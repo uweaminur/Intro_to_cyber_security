@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Certificate (CA) Simulator</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column;}
+        .panel h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        /* Thematic Colors */
+        .server-panel { border-top: 5px solid #3498db; } /* Blue */
+        .ca-panel { border-top: 5px solid #9b59b6; } /* Purple */
+        .browser-panel { border-top: 5px solid #2ecc71; } /* Green */
+
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-family: monospace;}
+        button { width: 100%; padding: 10px; background-color: #2c3e50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 10px; transition: background 0.3s;}
+        button:hover { background-color: #1a252f; }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        
+        .btn-danger { background-color: #e74c3c; }
+        .btn-danger:hover { background-color: #c0392b; }
+
+        .data-box { background: #2c3e50; color: #ecf0f1; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; word-wrap: break-word; min-height: 40px; margin-bottom: 10px; flex-grow: 1;}
+        .success { background-color: #d5f5e3; color: #27ae60; border: 1px solid #2ecc71; padding: 15px; border-radius: 4px; font-weight: bold; text-align: center; display: none;}
+        .fail { background-color: #fadbd8; color: #c0392b; border: 1px solid #e74c3c; padding: 15px; border-radius: 4px; font-weight: bold; text-align: center; display: none;}
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>Interactive Digital Certificate (X.509) Simulator</h2>
+    <p>Watch how a Certificate Authority (CA) signs a public key, and how a browser verifies it.</p>
+</div>
+
+<div class="grid-container">
+    <div class="panel server-panel">
+        <h3>💻 1. Web Server</h3>
+        <p>The server creates a key pair and asks the CA for a certificate.</p>
+        <label>Domain Name:</label>
+        <input type="text" id="domainInput" value="securebank.com">
+        <button id="btnGenerateCSR">Generate Keys & Create CSR</button>
+        <strong>Certificate Signing Request (CSR):</strong>
+        <div class="data-box" id="csrData">Waiting to generate...</div>
+    </div>
+
+    <div class="panel ca-panel">
+        <h3>🏛️ 2. Certificate Authority</h3>
+        <p>The trusted CA verifies the domain and cryptographically signs the CSR.</p>
+        <div style="font-size: 12px; color: #7f8c8d; margin-bottom: 10px;">*CA Private Key mathematically applied to CSR data*</div>
+        <button id="btnSignCert" disabled>Sign Certificate with CA Private Key</button>
+        <strong>Issued Digital Certificate:</strong>
+        <div class="data-box" id="certData">Waiting for CSR...</div>
+        
+        <hr style="width: 100%; border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+        <p style="color: #e74c3c; font-weight: bold; margin: 0 0 5px 0;">🦹‍♂️ Hacker Interception:</p>
+        <button id="btnTamper" class="btn-danger" disabled>Tamper: Change Domain to "evil-site.com"</button>
+    </div>
+
+    <div class="panel browser-panel">
+        <h3>🌐 3. User Browser</h3>
+        <p>The browser receives the certificate and verifies the CA's signature.</p>
+        <button id="btnVerify" disabled>Connect & Verify Certificate</button>
+        
+        <div id="resultSuccess" class="success">
+            🔒 Connection Secure!<br><span style="font-size: 12px; font-weight: normal;">Signature verified. The public key truly belongs to this domain.</span>
+        </div>
+        
+        <div id="resultFail" class="fail">
+            ⚠️ WARNING: INSECURE!<br><span style="font-size: 12px; font-weight: normal;">Signature verification FAILED. The certificate has been tampered with or is fake!</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // System State
+    let caKeyPair = null;
+    let serverPublicKey = null;
+    let issuedCertificate = null; // Holds the plain text data
+    let digitalSignature = null;  // Holds the cryptographic signature
+
+    const encoder = new TextEncoder();
+
+    // DOM Elements
+    const btnGenerateCSR = document.getElementById('btnGenerateCSR');
+    const domainInput = document.getElementById('domainInput');
+    const csrData = document.getElementById('csrData');
+    const btnSignCert = document.getElementById('btnSignCert');
+    const certData = document.getElementById('certData');
+    const btnTamper = document.getElementById('btnTamper');
+    const btnVerify = document.getElementById('btnVerify');
+    const resultSuccess = document.getElementById('resultSuccess');
+    const resultFail = document.getElementById('resultFail');
+
+    // Initialize CA Keys automatically on load (ECDSA for fast signing)
+    window.onload = async () => {
+        caKeyPair = await window.crypto.subtle.generateKey(
+            { name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]
+        );
+    };
+
+    // Helper to mock a hex string display
+    function generateHexMock(length) {
+        return [...Array(length)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+    }
+
+    // Step 1: Server generates CSR
+    btnGenerateCSR.addEventListener('click', () => {
+        const domain = domainInput.value;
+        serverPublicKey = `PubKey_` + generateHexMock(32); // Mocking public key for visual simplicity
+        
+        const csr = {
+            domain: domain,
+            publicKey: serverPublicKey
+        };
+        
+        csrData.innerHTML = `Domain: ${csr.domain}<br>PubKey: ${csr.publicKey.substring(0, 20)}...`;
+        btnSignCert.disabled = false;
+        
+        // Reset UI
+        certData.innerHTML = "Waiting for CA...";
+        resultSuccess.style.display = 'none';
+        resultFail.style.display = 'none';
+        btnVerify.disabled = true;
+        btnTamper.disabled = true;
+    });
+
+    // Step 2: CA Signs the Certificate
+    btnSignCert.addEventListener('click', async () => {
+        const domain = domainInput.value;
+        
+        // The data to be signed
+        issuedCertificate = JSON.stringify({ domain: domain, publicKey: serverPublicKey });
+        
+        // Cryptographically sign the data using CA's Private Key
+        const dataBuffer = encoder.encode(issuedCertificate);
+        digitalSignature = await window.crypto.subtle.sign(
+            { name: "ECDSA", hash: { name: "SHA-256" } },
+            caKeyPair.privateKey,
+            dataBuffer
+        );
+
+        // Display the issued certificate
+        const sigHex = Array.from(new Uint8Array(digitalSignature)).map(b => b.toString(16).padStart(2, '0')).join('');
+        certData.innerHTML = `<b>Subject:</b> ${domain}<br><b>Key:</b> ${serverPublicKey.substring(0,15)}...<br><b>CA Signature:</b> ${sigHex.substring(0, 20)}...`;
+        
+        btnVerify.disabled = false;
+        btnTamper.disabled = false;
+    });
+
+    // Hacker Tampering Step
+    btnTamper.addEventListener('click', () => {
+        // Change the domain in the certificate, but leave the old signature intact!
+        issuedCertificate = JSON.stringify({ domain: "evil-site.com", publicKey: serverPublicKey });
+        
+        certData.innerHTML = `<span style="color:#e74c3c"><b>Subject:</b> evil-site.com (TAMPERED!)</span><br><b>Key:</b> ${serverPublicKey.substring(0,15)}...<br><b>CA Signature:</b> [Original Signature Retained]`;
+        
+        btnTamper.disabled = true;
+        alert("The hacker intercepted the certificate and changed the domain name to route you to their server!");
+    });
+
+    // Step 3: Browser Verifies
+    btnVerify.addEventListener('click', async () => {
+        // Browser verifies the certificate data against the attached signature using the CA's Public Key
+        const dataBuffer = encoder.encode(issuedCertificate);
+        
+        try {
+            const isValid = await window.crypto.subtle.verify(
+                { name: "ECDSA", hash: { name: "SHA-256" } },
+                caKeyPair.publicKey,
+                digitalSignature,
+                dataBuffer
+            );
+
+            if (isValid) {
+                resultSuccess.style.display = 'block';
+                resultFail.style.display = 'none';
+            } else {
+                resultSuccess.style.display = 'none';
+                resultFail.style.display = 'block';
+            }
+        } catch (e) {
+            resultSuccess.style.display = 'none';
+            resultFail.style.display = 'block';
+        }
+    });
+</script>
+
+</body>
+</html>
