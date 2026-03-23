@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Public Key Cryptography Simulator</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; color: #333; margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .panel h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        /* Thematic Colors */
+        .alice-panel { border-top: 5px solid #3498db; } /* Blue */
+        .eve-panel { border-top: 5px solid #e74c3c; background-color: #fdf2f1; } /* Red */
+        .bob-panel { border-top: 5px solid #2ecc71; } /* Green */
+
+        textarea { width: 100%; height: 80px; margin-bottom: 10px; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; resize: vertical; }
+        button { width: 100%; padding: 10px; background-color: #2c3e50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 10px; transition: background 0.3s;}
+        button:hover { background-color: #1a252f; }
+        button:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        
+        .data-box { background: #2c3e50; color: #2ecc71; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; word-wrap: break-word; min-height: 40px; margin-bottom: 10px; }
+        .status { font-size: 13px; color: #7f8c8d; font-weight: bold; margin-top: 5px; }
+        .alert { color: #e74c3c; font-weight: bold; font-size: 14px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>Interactive Public Key (RSA) Simulator</h2>
+    <p>Watch how Asymmetric Cryptography secures data across an untrusted network.</p>
+</div>
+
+<div class="grid-container">
+    <div class="panel alice-panel">
+        <h3>👤 Alice (Sender)</h3>
+        <p>Alice wants to send a secret message to Bob.</p>
+        <textarea id="aliceMessage" placeholder="Type a secret message here..." disabled></textarea>
+        <button id="encryptBtn" disabled>1. Encrypt with Bob's Public Key & Send</button>
+        <div class="status" id="aliceStatus">Waiting for Bob's Public Key...</div>
+    </div>
+
+    <div class="panel eve-panel">
+        <h3>🦹‍♀️ Eve (The Internet)</h3>
+        <p>Eve monitors all network traffic. She intercepts the data.</p>
+        <strong>Intercepted Ciphertext:</strong>
+        <div class="data-box" id="eveData">No data intercepted yet.</div>
+        <button id="hackBtn" disabled>Attempt to Decrypt with Public Key</button>
+        <div class="alert" id="eveAlert"></div>
+    </div>
+
+    <div class="panel bob-panel">
+        <h3>👤 Bob (Receiver)</h3>
+        <p>Bob generates the keys and receives the message.</p>
+        <button id="generateKeysBtn">Generate RSA Key Pair</button>
+        <div class="status" id="keyStatus">Keys not generated.</div>
+        
+        <hr style="margin: 20px 0; border: 1px solid #eee;">
+        
+        <button id="decryptBtn" disabled>2. Decrypt with Private Key</button>
+        <strong>Decrypted Message:</strong>
+        <div class="data-box" style="background:#f4f9f4; color:#27ae60; font-size: 16px;" id="bobData">Waiting for message...</div>
+    </div>
+</div>
+
+<script>
+    // Cryptographic variables
+    let publicKey = null;
+    let privateKey = null;
+    let encryptedBuffer = null;
+
+    // DOM Elements
+    const generateKeysBtn = document.getElementById('generateKeysBtn');
+    const keyStatus = document.getElementById('keyStatus');
+    const aliceMessage = document.getElementById('aliceMessage');
+    const encryptBtn = document.getElementById('encryptBtn');
+    const aliceStatus = document.getElementById('aliceStatus');
+    const eveData = document.getElementById('eveData');
+    const hackBtn = document.getElementById('hackBtn');
+    const eveAlert = document.getElementById('eveAlert');
+    const decryptBtn = document.getElementById('decryptBtn');
+    const bobData = document.getElementById('bobData');
+
+    // Utility: Convert ArrayBuffer to Hex String for display
+    function bufferToHex(buffer) {
+        return Array.from(new Uint8Array(buffer))
+            .map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // Step 1: Bob generates the keys
+    generateKeysBtn.addEventListener('click', async () => {
+        keyStatus.textContent = "Generating 2048-bit RSA keys... please wait.";
+        generateKeysBtn.disabled = true;
+
+        try {
+            // Using Web Crypto API for actual RSA-OAEP generation
+            const keyPair = await window.crypto.subtle.generateKey(
+                { name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+                true, ["encrypt", "decrypt"]
+            );
+            
+            publicKey = keyPair.publicKey;
+            privateKey = keyPair.privateKey;
+
+            keyStatus.innerHTML = "✅ Keys Generated!<br>Public Key sent to Alice.<br>Private Key kept secret.";
+            
+            // Enable Alice's controls
+            aliceMessage.disabled = false;
+            encryptBtn.disabled = false;
+            aliceStatus.textContent = "Received Bob's Public Key. Ready to encrypt.";
+            aliceMessage.value = "Hello Bob, this is a highly classified message!";
+        } catch (err) {
+            console.error(err);
+            keyStatus.textContent = "Error generating keys.";
+        }
+    });
+
+    // Step 2: Alice encrypts and sends
+    encryptBtn.addEventListener('click', async () => {
+        const text = aliceMessage.value;
+        if (!text) return alert("Please type a message first.");
+
+        try {
+            // Encode text to ArrayBuffer
+            const encodedText = new TextEncoder().encode(text);
+            
+            // Encrypt using Bob's PUBLIC key
+            encryptedBuffer = await window.crypto.subtle.encrypt(
+                { name: "RSA-OAEP" }, publicKey, encodedText
+            );
+
+            // Send to network (Eve's panel)
+            const hexCiphertext = bufferToHex(encryptedBuffer);
+            eveData.textContent = hexCiphertext.substring(0, 100) + "... [Truncated for display]";
+            
+            // Enable Eve and Bob actions
+            hackBtn.disabled = false;
+            decryptBtn.disabled = false;
+            eveAlert.textContent = "";
+            aliceStatus.textContent = "Message encrypted and sent!";
+            bobData.textContent = "Ciphertext received. Awaiting decryption.";
+            
+        } catch (err) {
+            console.error(err);
+            aliceStatus.textContent = "Encryption failed.";
+        }
+    });
+
+    // Step 3: Eve tries to hack it
+    hackBtn.addEventListener('click', () => {
+        // Eve only has the Public Key, which cannot decrypt in RSA.
+        eveAlert.textContent = "ACCESS DENIED! The Public Key can only LOCK data. You need Bob's Private Key to UNLOCK it.";
+    });
+
+    // Step 4: Bob decrypts it
+    decryptBtn.addEventListener('click', async () => {
+        try {
+            // Decrypt using Bob's PRIVATE key
+            const decryptedBuffer = await window.crypto.subtle.decrypt(
+                { name: "RSA-OAEP" }, privateKey, encryptedBuffer
+            );
+            
+            // Decode ArrayBuffer back to text
+            const decryptedText = new TextDecoder().decode(decryptedBuffer);
+            bobData.textContent = decryptedText;
+            decryptBtn.disabled = true; // Prevent spam clicking
+
+        } catch (err) {
+            console.error(err);
+            bobData.textContent = "Decryption failed. Wrong key?";
+        }
+    });
+</script>
+
+</body>
+</html>
