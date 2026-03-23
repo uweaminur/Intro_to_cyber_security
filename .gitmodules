@@ -1,0 +1,3 @@
+[submodule "sha256-hash-demonstrator"]
+	path = sha256-hash-demonstrator
+	url = git@github.com:uweaminur/sha256-hash-demonstrator.git
